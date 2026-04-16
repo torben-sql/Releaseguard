@@ -1,7 +1,19 @@
 import React, { useState } from 'react';
 
+export interface Environment {
+  id: string;
+  name: string;
+  displayOrder: number | null;
+  jdbcUrl: string;
+  dbUser: string;
+  dbPassword: string;
+  createdAt: string;
+}
+
 interface Props {
   onSaved: () => void;
+  onCancel: () => void;
+  existing?: Environment;
 }
 
 interface FormState {
@@ -12,26 +24,26 @@ interface FormState {
   dbPassword: string;
 }
 
-const initialForm: FormState = {
-  name: '',
-  displayOrder: '',
-  jdbcUrl: '',
-  dbUser: '',
-  dbPassword: '',
-};
-
 const fields: { key: keyof FormState; label: string; type: string; required: boolean }[] = [
-  { key: 'name',         label: 'Name',          type: 'text',     required: true  },
-  { key: 'displayOrder', label: 'Display Order',  type: 'number',   required: false },
-  { key: 'jdbcUrl',      label: 'JDBC URL',       type: 'text',     required: false },
-  { key: 'dbUser',       label: 'DB User',        type: 'text',     required: false },
-  { key: 'dbPassword',   label: 'DB Password',    type: 'password', required: false },
+  { key: 'name',         label: 'Name',         type: 'text',     required: true  },
+  { key: 'displayOrder', label: 'Display Order', type: 'number',   required: false },
+  { key: 'jdbcUrl',      label: 'JDBC URL',      type: 'text',     required: false },
+  { key: 'dbUser',       label: 'DB User',       type: 'text',     required: false },
+  { key: 'dbPassword',   label: 'DB Password',   type: 'password', required: false },
 ];
 
-function EnvironmentForm({ onSaved }: Props) {
-  const [form, setForm] = useState<FormState>(initialForm);
+function EnvironmentForm({ onSaved, onCancel, existing }: Props) {
+  const [form, setForm] = useState<FormState>({
+    name:         existing?.name          ?? '',
+    displayOrder: existing?.displayOrder  ?? '',
+    jdbcUrl:      existing?.jdbcUrl       ?? '',
+    dbUser:       existing?.dbUser        ?? '',
+    dbPassword:   existing?.dbPassword    ?? '',
+  });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const isEdit = existing !== undefined;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -45,8 +57,12 @@ function EnvironmentForm({ onSaved }: Props) {
     e.preventDefault();
     setSaving(true);
     setError(null);
-    fetch('/api/environments', {
-      method: 'POST',
+
+    const url    = isEdit ? `/api/environments/${existing!.id}` : '/api/environments';
+    const method = isEdit ? 'PUT' : 'POST';
+
+    fetch(url, {
+      method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ...form,
@@ -69,7 +85,7 @@ function EnvironmentForm({ onSaved }: Props) {
       onSubmit={handleSubmit}
       style={{ border: '1px solid #ddd', borderRadius: 6, padding: '1rem', marginBottom: '1.5rem', maxWidth: 480 }}
     >
-      <h3 style={{ margin: '0 0 1rem' }}>New Environment</h3>
+      <h3 style={{ margin: '0 0 1rem' }}>{isEdit ? 'Edit Environment' : 'New Environment'}</h3>
 
       {fields.map(({ key, label, type, required }) => (
         <div key={key} style={{ marginBottom: '0.6rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -87,9 +103,14 @@ function EnvironmentForm({ onSaved }: Props) {
 
       {error && <p style={{ color: 'red', margin: '0.5rem 0' }}>{error}</p>}
 
-      <button type="submit" disabled={saving} style={{ marginTop: '0.5rem' }}>
-        {saving ? 'Saving…' : 'Save'}
-      </button>
+      <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+        <button type="submit" disabled={saving}>
+          {saving ? 'Saving…' : 'Save'}
+        </button>
+        <button type="button" onClick={onCancel}>
+          Cancel
+        </button>
+      </div>
     </form>
   );
 }

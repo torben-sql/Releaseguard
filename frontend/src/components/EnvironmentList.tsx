@@ -1,14 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import EnvironmentForm from './EnvironmentForm';
-
-interface Environment {
-  id: string;
-  name: string;
-  displayOrder: number | null;
-  jdbcUrl: string;
-  dbUser: string;
-  createdAt: string;
-}
+import EnvironmentForm, { Environment } from './EnvironmentForm';
 
 interface TestResult {
   status: 'success' | 'failure';
@@ -17,7 +8,8 @@ interface TestResult {
 
 function EnvironmentList() {
   const [environments, setEnvironments] = useState<Environment[]>([]);
-  const [showForm, setShowForm] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [editingEnv, setEditingEnv] = useState<Environment | null>(null);
   const [testResults, setTestResults] = useState<Record<string, TestResult>>({});
   const [testing, setTesting] = useState<Record<string, boolean>>({});
 
@@ -31,6 +23,37 @@ function EnvironmentList() {
   useEffect(() => {
     fetchEnvironments();
   }, []);
+
+  const openEdit = (env: Environment) => {
+    setShowAddForm(false);
+    setEditingEnv(prev => (prev?.id === env.id ? null : env));
+  };
+
+  const openAdd = () => {
+    setEditingEnv(null);
+    setShowAddForm(v => !v);
+  };
+
+  const closeForm = () => {
+    setShowAddForm(false);
+    setEditingEnv(null);
+  };
+
+  const handleSaved = () => {
+    closeForm();
+    fetchEnvironments();
+  };
+
+  const deleteEnvironment = (env: Environment) => {
+    if (!window.confirm(`Are you sure you want to delete ${env.name}?`)) return;
+    fetch(`/api/environments/${env.id}`, { method: 'DELETE' })
+      .then(res => {
+        if (!res.ok) throw new Error(`Server error: ${res.status}`);
+        if (editingEnv?.id === env.id) setEditingEnv(null);
+        fetchEnvironments();
+      })
+      .catch(err => console.error('Failed to delete environment', err));
+  };
 
   const testConnection = (id: string) => {
     setTesting(prev => ({ ...prev, [id]: true }));
@@ -50,17 +73,25 @@ function EnvironmentList() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
         <h2 style={{ margin: 0 }}>Environments</h2>
-        <button onClick={() => setShowForm(v => !v)}>
-          {showForm ? 'Cancel' : '+ Add'}
+        <button onClick={openAdd}>
+          {showAddForm ? 'Cancel' : '+ Add'}
         </button>
       </div>
 
-      {showForm && (
+      {showAddForm && (
         <EnvironmentForm
-          onSaved={() => {
-            setShowForm(false);
-            fetchEnvironments();
-          }}
+          key="new"
+          onSaved={handleSaved}
+          onCancel={closeForm}
+        />
+      )}
+
+      {editingEnv && (
+        <EnvironmentForm
+          key={editingEnv.id}
+          existing={editingEnv}
+          onSaved={handleSaved}
+          onCancel={closeForm}
         />
       )}
 
@@ -77,10 +108,28 @@ function EnvironmentList() {
           </thead>
           <tbody>
             {environments.map(env => (
-              <tr key={env.id} style={{ borderBottom: '1px solid #eee' }}>
+              <tr
+                key={env.id}
+                style={{
+                  borderBottom: '1px solid #eee',
+                  background: editingEnv?.id === env.id ? '#fffbe6' : undefined,
+                }}
+              >
                 <td style={td}>{env.name}</td>
                 <td style={{ ...td, fontFamily: 'monospace', fontSize: '0.85rem' }}>{env.jdbcUrl}</td>
-                <td style={td}>
+                <td style={{ ...td, whiteSpace: 'nowrap' }}>
+                  <button
+                    onClick={() => openEdit(env)}
+                    style={{ marginRight: '0.5rem' }}
+                  >
+                    {editingEnv?.id === env.id ? 'Cancel Edit' : 'Edit'}
+                  </button>
+                  <button
+                    onClick={() => deleteEnvironment(env)}
+                    style={{ marginRight: '0.5rem', color: '#c0392b' }}
+                  >
+                    Delete
+                  </button>
                   <button
                     onClick={() => testConnection(env.id)}
                     disabled={testing[env.id]}
